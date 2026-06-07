@@ -7,9 +7,10 @@ import { SiteHeader } from "@/components/site-header"
 import { SiteTicker } from "@/components/site-ticker"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronRight, Trophy, Check, Send, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Trophy, Check, Send, Loader2, ListChecks } from "lucide-react"
 import { showLoading, showError, showSuccess, showConfirm, showInfo } from "@/lib/swal"
 import { useAuth } from "./providers"
+import { PredictionMarket } from "@/components/prediction-market"
 
 type AllPicks = Record<string, Record<string, string>>
 
@@ -360,60 +361,44 @@ export default function Page() {
             className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 py-4"
             style={{ paddingBottom: `${FOOTER_HEIGHT + 16}px` }}
           >
-            <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-              {match.markets.map((market) => {
-                const selectedOption = matchPicks[market.id]
-                return (
-                  <div key={market.id} className="rounded-3xl border border-white/10 bg-[#081023]/80 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-white">{market.title}</p>
-                      <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                        {market.options.length} opc.
-                      </span>
-                    </div>
-                    <div className={cn(
-                      "grid gap-2",
-                      market.cols === 6 ? "grid-cols-3 sm:grid-cols-6"
-                        : market.cols === 4 ? "grid-cols-2 sm:grid-cols-4"
-                        : market.cols === 3 ? "grid-cols-3"
-                        : "grid-cols-2",
-                    )}>
-                      {market.options.map((option) => {
-                        const isActive = selectedOption === option.id
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => handlePick(market.id, option.id)}
-                            disabled={thisMatchSent}
-                            className={cn(
-                              "rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition-all",
-                              isActive
-                                ? "border-primary bg-primary/15 text-white"
-                                : thisMatchSent 
-                                  ? "border-white/5 bg-white/2 text-muted-foreground/50 cursor-not-allowed"
-                                  : "border-white/10 bg-white/5 text-muted-foreground hover:border-primary/40 hover:bg-white/10",
-                            )}
-                          >
-                            <span>{option.label}</span>
-                            <span className="mt-2 block text-xs font-medium text-muted-foreground">
-                              {option.points} pts
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <ListChecks className="size-4 text-primary" />
+              <h2 className="text-xs font-black uppercase tracking-[0.16em] text-white">
+                Tus pronósticos
+              </h2>
+              <span className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                {thisMatchDone}/{match.markets.length}
+              </span>
+            </div>
+            <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-3">
+              {match.markets.map((market) => (
+                <PredictionMarket
+                  key={market.id}
+                  market={market}
+                  selected={matchPicks[market.id]}
+                  disabled={thisMatchSent}
+                  onSelect={(optionId) => handlePick(market.id, optionId)}
+                />
+              ))}
             </div>
 
             {/* Resumen final */}
             <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 p-4 text-center">
               <p className="text-sm font-bold text-white">{match.home.name} (Local) vs {match.away.name} (Visitante)</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {thisMatchDone}/{match.markets.length} · {matchPoints(match.id)} pts
-              </p>
+              <div className="mx-auto mt-3 max-w-[260px]">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
+                  <span>{thisMatchDone}/{match.markets.length} pronósticos</span>
+                  <span className="inline-flex items-center gap-1 text-primary">
+                    <Trophy className="size-3" />{matchPoints(match.id)} pts
+                  </span>
+                </div>
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-500", thisMatchSent ? "bg-emerald-400" : "bg-primary")}
+                    style={{ width: `${match.markets.length ? (thisMatchDone / match.markets.length) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
               {thisMatchSent ? (
                 <>
                   <p className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300">
@@ -525,53 +510,32 @@ export default function Page() {
 
             <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-3 lg:space-y-4 lg:rounded-3xl lg:p-4">
-                {match.markets.map((market) => {
-                  const selectedOption = matchPicks[market.id]
-                  return (
-                    <div key={market.id} className="rounded-2xl border border-white/10 bg-[#081023]/80 p-3 lg:rounded-3xl lg:p-4">
-                      <div className="mb-2 flex items-center justify-between gap-2 lg:mb-3">
-                        <p className="text-xs font-semibold text-white lg:text-sm">{market.title}</p>
-                        <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-muted-foreground lg:text-xs">
-                          {market.options.length} opc.
-                        </span>
-                      </div>
-                      <div className={cn("grid gap-1.5 lg:gap-2",
-                        market.cols === 6 ? "grid-cols-3 lg:grid-cols-6"
-                          : market.cols === 4 ? "grid-cols-2 lg:grid-cols-4"
-                          : market.cols === 3 ? "grid-cols-3"
-                          : "grid-cols-2",
-                      )}>
-                        {market.options.map((option) => {
-                          const isActive = selectedOption === option.id
-                          return (
-                            <button key={option.id} type="button" 
-                              onClick={() => handlePick(market.id, option.id)}
-                              disabled={thisMatchSent}
-                              className={cn(
-                                "rounded-xl border px-2 py-2.5 text-left text-xs font-semibold transition-all lg:rounded-2xl lg:px-3 lg:py-3 lg:text-sm",
-                                isActive
-                                  ? "border-primary bg-primary/15 text-white"
-                                  : thisMatchSent
-                                    ? "border-white/5 bg-white/2 text-muted-foreground/50 cursor-not-allowed"
-                                    : "border-white/10 bg-white/5 text-muted-foreground hover:border-primary/40 hover:bg-white/10",
-                              )}>
-                              <span className="block leading-tight">{option.label}</span>
-                              <span className="mt-1 block text-[10px] font-medium text-muted-foreground lg:mt-2 lg:text-xs">
-                                {option.points} pts
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
+                {match.markets.map((market) => (
+                  <PredictionMarket
+                    key={market.id}
+                    market={market}
+                    selected={matchPicks[market.id]}
+                    disabled={thisMatchSent}
+                    onSelect={(optionId) => handlePick(market.id, optionId)}
+                  />
+                ))}
               </div>
               <div className="mt-3 rounded-2xl border border-accent/30 bg-accent/10 p-3 text-center lg:mt-4 lg:p-4">
                 <p className="text-sm font-bold text-white">{match.home.name} (Local) vs {match.away.name} (Visitante)</p>
-                <p className="mt-1 text-[10px] text-muted-foreground lg:text-xs">
-                  {thisMatchDone} de {match.markets.length} pronósticos · {matchPoints(match.id)} pts potenciales
-                </p>
+                <div className="mx-auto mt-3 max-w-[320px]">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
+                    <span>{thisMatchDone} de {match.markets.length} pronósticos</span>
+                    <span className="inline-flex items-center gap-1 text-primary">
+                      <Trophy className="size-3" />{matchPoints(match.id)} pts potenciales
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-500", thisMatchSent ? "bg-emerald-400" : "bg-primary")}
+                      style={{ width: `${match.markets.length ? (thisMatchDone / match.markets.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
                 {thisMatchSent ? (
                   <>
                     <p className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-300 lg:text-xs">
