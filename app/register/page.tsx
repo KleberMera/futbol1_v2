@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, ChevronDown } from "lucide-react"
 import { showLoading, showError, showSuccess, showConfirm } from "@/lib/swal"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
 const tickerItems = [
   { icon: "🥇", text: "1er Premio — Nevera + Cocina + Cilindro de Gas" },
@@ -21,7 +21,6 @@ const tickerItems = [
 type Provincia = { ID: number; NOMBRE: string }
 type Canton    = { ID: number; NOMBRE: string }
 type Barrio    = { ID: number; NOMBRE: string }
-
 type SelectOption = { ID: number; NOMBRE: string }
 
 interface CustomSelectProps {
@@ -130,7 +129,6 @@ export default function RegisterPage() {
   const [loadingCant, setLoadingCant] = useState(false)
   const [loadingBarr, setLoadingBarr] = useState(false)
   const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState("")
   const [success,     setSuccess]     = useState(false)
 
   // ── Detecta redirección desde login por cuenta pendiente ──
@@ -160,7 +158,7 @@ export default function RegisterPage() {
     fetch(`${API_BASE}/provincia`)
       .then((r) => r.json())
       .then((d) => setProvincias(d.data ?? d))
-      .catch(() => setError("Error al cargar provincias"))
+      .catch(() => showError("Error al cargar provincias"))
       .finally(() => setLoadingProv(false))
   }, [step])
 
@@ -172,7 +170,7 @@ export default function RegisterPage() {
     fetch(`${API_BASE}/canton/provincia/${provinciaId}`)
       .then((r) => r.json())
       .then((d) => setCantones(d.data ?? d))
-      .catch(() => setError("Error al cargar cantones"))
+      .catch(() => showError("Error al cargar cantones"))
       .finally(() => setLoadingCant(false))
   }, [provinciaId])
 
@@ -183,46 +181,61 @@ export default function RegisterPage() {
     fetch(`${API_BASE}/barrio/canton/${cantonId}`)
       .then((r) => r.json())
       .then((d) => setBarrios(d.data ?? d))
-      .catch(() => setError("Error al cargar barrios"))
+      .catch(() => showError("Error al cargar barrios"))
       .finally(() => setLoadingBarr(false))
   }, [cantonId])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setFormData({ ...formData, [e.target.name]: e.target.value })
 
+  // ── STEP 1: valida → check-cedula → confirma teléfono → avanza ──
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
 
-    // 1. Validar campos obligatorios
+    // 1. Campos obligatorios
     if (!formData.cedula || !formData.nombres || !formData.apellidos || !formData.telefono) {
-      const msg = "Completa todos los campos obligatorios"
-      setError(msg)
-      showError(msg)
+      showError("Completa todos los campos obligatorios")
       return
     }
 
-    // 2. Validar longitud de cédula
+    // 2. Longitud cédula
     if (formData.cedula.length !== 10) {
-      const msg = "La cédula debe tener exactamente 10 dígitos"
-      setError(msg)
-      showError(msg)
+      showError("La cédula debe tener exactamente 10 dígitos")
       return
     }
 
-    // 3. Validar longitud de teléfono
+    // 3. Longitud teléfono
     if (formData.telefono.length !== 10) {
-      const msg = "El número de teléfono debe tener exactamente 10 dígitos"
-      setError(msg)
-      showError(msg)
+      showError("El número de celular debe tener exactamente 10 dígitos")
       return
     }
 
-    // 4. Confirmar teléfono para WhatsApp
+    // 4. Verificar que la cédula no esté registrada
+    setLoading(true)
+    showLoading("Verificando cédula...")
+    try {
+      const res = await fetch(`${API_BASE}/usuario/check-cedula`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ CEDULA: formData.cedula }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showError(data.message || "La cédula ya está registrada")
+        return
+      }
+    } catch {
+      showError("Error de conexión con el servidor")
+      return
+    } finally {
+      setLoading(false)
+    }
+
+    // 5. Confirmar teléfono para WhatsApp
     const confirm = await showConfirm(
-      '¿Tu número es correcto?',
+      "¿Tu número es correcto?",
       `El código de activación se enviará por WhatsApp al: ${formData.telefono}. ¿Deseas continuar?`,
-      'Sí, es correcto'
+      "Sí, es correcto"
     )
 
     if (confirm.isConfirmed) {
@@ -230,71 +243,69 @@ export default function RegisterPage() {
     }
   }
 
+  // ── STEP 2: registra usuario ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
 
-    // Solo requerimos Cantón y Barrio si la provincia seleccionada tiene opciones disponibles
-    const hasOptions = cantones.length > 0
-    if (!provinciaId || (hasOptions && (!cantonId || !barrioId)) || !formData.direccion) {
-      const msg = !provinciaId 
-        ? "Selecciona una provincia" 
-        : hasOptions && (!cantonId || !barrioId)
-          ? "Selecciona cantón y barrio"
-          : "Ingresa tu dirección completa"
-      setError(msg)
-      showError(msg)
+    const hasCantonesDisponibles = cantones.length > 0
+
+    if (!provinciaId) {
+      showError("Selecciona una provincia")
+      return
+    }
+    if (hasCantonesDisponibles && (!cantonId || !barrioId)) {
+      showError("Selecciona cantón y barrio")
+      return
+    }
+    if (!formData.direccion) {
+      showError("Ingresa tu dirección completa")
       return
     }
 
     const confirm = await showConfirm(
-      '¿Registrar cuenta?',
-      '¿Confirmas que tus datos son los correctos?',
-      'Sí, registrar'
+      "¿Registrar cuenta?",
+      "¿Confirmas que tus datos son los correctos?",
+      "Sí, registrar"
     )
-
     if (!confirm.isConfirmed) return
 
     setLoading(true)
-    showLoading('Creando tu cuenta...')
+    showLoading("Creando tu cuenta...")
     try {
       const res = await fetch(`${API_BASE}/usuario/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          CEDULA:      formData.cedula,
-          NOMBRES:     formData.nombres,
-          APELLIDOS:   formData.apellidos,
-          TELEFONO:    formData.telefono,
+          CEDULA:       formData.cedula,
+          NOMBRES:      formData.nombres,
+          APELLIDOS:    formData.apellidos,
+          TELEFONO:     formData.telefono,
           CORREO:       formData.email,
-          DIRECCION:   formData.direccion,
+          DIRECCION:    formData.direccion,
           PROVINCIA_ID: provinciaId,
-          CANTON_ID:    hasOptions ? cantonId : null,
-          BARRIO_ID:    hasOptions ? barrioId : null,
+          CANTON_ID:    hasCantonesDisponibles ? cantonId : null,
+          BARRIO_ID:    hasCantonesDisponibles ? barrioId : null,
         }),
       })
       const data = await res.json()
       if (res.ok) {
-        showSuccess('¡Registro casi completo! Por favor verifica tu código de verificación enviado a tu whatsapp.')
+        showSuccess("¡Registro casi completo! Revisa tu WhatsApp para obtener el código de verificación.")
         setStep(3)
       } else {
-        const msg = data.message || "Error al registrar usuario"
-        setError(msg)
-        showError(msg)
+        showError(data.message || "Error al registrar usuario")
       }
     } catch {
-      setError("Error de conexión con el servidor")
       showError("Error de conexión con el servidor")
     } finally {
       setLoading(false)
     }
   }
 
+  // ── STEP 3: verifica código ──
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
     setVerifying(true)
-    showLoading('Verificando código...')
+    showLoading("Verificando código...")
     try {
       const res = await fetch(`${API_BASE}/usuario/verify`, {
         method: "POST",
@@ -303,24 +314,21 @@ export default function RegisterPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        showSuccess('¡Cuenta verificada con éxito!')
+        showSuccess("¡Cuenta verificada con éxito!")
         setSuccess(true)
       } else {
-        const msg = data.message || "Código incorrecto"
-        setError(msg)
-        showError(msg)
+        showError(data.message || "Código incorrecto")
       }
     } catch {
-      setError("Error de conexión")
       showError("Error de conexión")
     } finally {
       setVerifying(false)
     }
   }
 
+  // ── STEP 3: reenvía código ──
   const handleResend = async () => {
-    setError("")
-    showLoading('Reenviando código...')
+    showLoading("Reenviando código...")
     try {
       const res = await fetch(`${API_BASE}/usuario/verify/resend`, {
         method: "POST",
@@ -329,14 +337,11 @@ export default function RegisterPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        showSuccess('Código reenviado con éxito')
+        showSuccess("Código reenviado por WhatsApp")
       } else {
-        const msg = data.message || "Error al reenviar"
-        setError(msg)
-        showError(msg)
+        showError(data.message || "Error al reenviar")
       }
     } catch {
-      setError("Error de conexión")
       showError("Error de conexión")
     }
   }
@@ -398,7 +403,9 @@ export default function RegisterPage() {
                     </svg>
                     <div>
                       <h3 className="text-base uppercase font-extrabold tracking-tight text-white sm:text-lg">Registro</h3>
-                      <p className="text-[0.68rem] text-muted-foreground sm:text-xs">{step === 1 ? "Datos personales" : step === 2 ? "Ubicación" : "Verificación"}</p>
+                      <p className="text-[0.68rem] text-muted-foreground sm:text-xs">
+                        {step === 1 ? "Datos personales" : step === 2 ? "Ubicación" : "Verificación"}
+                      </p>
                     </div>
                   </div>
 
@@ -423,13 +430,6 @@ export default function RegisterPage() {
                         <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-black transition-all ${step === 3 ? "border-[#ff7a00] text-[#ff7a00] shadow-[0_0_12px_rgba(255,122,0,0.3)]" : "border-white/20 text-white/30"}`}>3</div>
                         <span className={`text-[0.62rem] font-bold uppercase tracking-wider ${step === 3 ? "text-[#ffb347]" : "text-white/30"}`}>Verificar</span>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Error */}
-                  {error && (
-                    <div className="mb-4 rounded-lg border border-red-800 bg-red-950 p-3 text-center">
-                      <p className="text-xs font-bold text-red-300">{error}</p>
                     </div>
                   )}
 
@@ -476,8 +476,12 @@ export default function RegisterPage() {
                         placeholder="0991234567" inputMode="tel" maxLength={10} required
                         className={`${inputClass} mb-4`} />
 
-                      <Button type="submit" size="lg" className="w-full font-bold bg-gradient-to-r from-[#ff7a00] to-[#ffb347] text-white py-3">
-                        Siguiente →
+                      <Button type="submit" size="lg" disabled={loading}
+                        className="w-full font-bold bg-gradient-to-r from-[#ff7a00] to-[#ffb347] text-white py-3">
+                        {loading
+                          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verificando...</>
+                          : "Siguiente →"
+                        }
                       </Button>
                       <p className="mt-3.5 text-[0.72rem] text-muted-foreground sm:mt-4 sm:text-xs">
                         ¿Ya tienes cuenta?{" "}
@@ -519,7 +523,7 @@ export default function RegisterPage() {
                         placeholder="Tu dirección completa" required
                         className={`${inputClass} mb-4`} />
 
-                      <button type="button" onClick={() => { setStep(1); setError("") }}
+                      <button type="button" onClick={() => setStep(1)}
                         className="mb-2.5 w-full rounded-lg border border-white/10 bg-transparent py-2.5 text-sm font-bold text-white/50 transition hover:border-white/30 hover:text-white/80">
                         ← Atrás
                       </button>
