@@ -31,8 +31,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-const BASE = '/futbolv2' 
-//const BASE = ' '
+// En producción el basePath es '/futbolv2'. En previsualización (v0) se
+// desactiva con NEXT_PUBLIC_DISABLE_BASE_PATH=1 para evitar bucles de redirección.
+const BASE = process.env.NEXT_PUBLIC_DISABLE_BASE_PATH === '1' ? '' : '/futbolv2'
 const ADMIN_ROLES = ['ADMINISTRADOR']
 const isAdminRole = (role?: string, roleId?: number) => {
   if (roleId === 1) return true
